@@ -15,6 +15,7 @@ type termEnv struct {
 	ghosttyResourcesDir string
 	tmux                string
 	glowmSixel          string
+	imageProtocol       string
 }
 
 // setTermEnv resets the Detect/isSixel caches and applies e for the current
@@ -33,6 +34,7 @@ func setTermEnv(t *testing.T, e termEnv) {
 	t.Setenv("GHOSTTY_RESOURCES_DIR", e.ghosttyResourcesDir)
 	t.Setenv("TMUX", e.tmux)
 	t.Setenv("GLOWM_SIXEL", e.glowmSixel)
+	t.Setenv("GLOWM_IMAGE_PROTOCOL", e.imageProtocol)
 }
 
 func TestEncode_FormatNone(t *testing.T) {
@@ -191,6 +193,40 @@ func TestDetect_GhosttyInTmux(t *testing.T) {
 	})
 	if got := Detect(); got != FormatKitty {
 		t.Fatalf("expected FormatKitty for Ghostty in tmux, got %d", got)
+	}
+}
+
+func TestDetect_GhosttyInHerdr(t *testing.T) {
+	setTermEnv(t, termEnv{
+		termProgram:         "herdr",
+		term:                "xterm-256color",
+		ghosttyResourcesDir: "/snap/ghostty/current/share/ghostty",
+	})
+	if got := Detect(); got != FormatKitty {
+		t.Fatalf("expected FormatKitty for Ghostty in herdr, got %d", got)
+	}
+}
+
+func TestDetect_ImageProtocolOverride(t *testing.T) {
+	tests := []struct {
+		value string
+		env   termEnv
+		want  Format
+	}{
+		{"kitty", termEnv{term: "xterm-256color"}, FormatKitty},
+		{"KITTY", termEnv{term: "xterm-256color"}, FormatKitty},
+		{"iterm2", termEnv{term: "xterm-256color"}, FormatIterm2},
+		{"sixel", termEnv{term: "xterm-256color"}, FormatSixel},
+		{"none", termEnv{term: "xterm-kitty"}, FormatNone},
+	}
+	for _, tt := range tests {
+		t.Run(tt.value, func(t *testing.T) {
+			tt.env.imageProtocol = tt.value
+			setTermEnv(t, tt.env)
+			if got := Detect(); got != tt.want {
+				t.Fatalf("GLOWM_IMAGE_PROTOCOL=%q: got %d, want %d", tt.value, got, tt.want)
+			}
+		})
 	}
 }
 

@@ -40,6 +40,9 @@ func resetDetectCache() {
 }
 
 func detectUncached() Format {
+	if f, ok := formatFromEnv(); ok {
+		return f
+	}
 	if isIterm2() {
 		return FormatIterm2
 	}
@@ -71,15 +74,33 @@ func EncodeWithWidth(format Format, png []byte, widthCells int) string {
 	}
 }
 
+// formatFromEnv honors GLOWM_IMAGE_PROTOCOL (kitty, iterm2, sixel, none) so
+// users can force a protocol when auto-detection fails, e.g. inside a
+// multiplexer that hides the outer terminal's identity.
+func formatFromEnv() (Format, bool) {
+	switch strings.ToLower(os.Getenv("GLOWM_IMAGE_PROTOCOL")) {
+	case "kitty":
+		return FormatKitty, true
+	case "iterm2":
+		return FormatIterm2, true
+	case "sixel":
+		return FormatSixel, true
+	case "none":
+		return FormatNone, true
+	}
+	return FormatNone, false
+}
+
 func isIterm2() bool {
 	return os.Getenv("TERM_PROGRAM") == "iTerm.app"
 }
 
 // supportsKittyGraphics reports whether the current terminal renders images
 // via the Kitty graphics protocol. This covers Kitty itself, Ghostty (native),
-// and Ghostty wrapped by tmux (which rewrites TERM_PROGRAM, so we rely on
-// TMUX + GHOSTTY_RESOURCES_DIR together to avoid false positives when the
-// env var leaks into unrelated children such as SSH with SendEnv).
+// and Ghostty wrapped by a multiplexer such as tmux or herdr (which rewrite
+// TERM_PROGRAM, so we rely on the multiplexer marker + GHOSTTY_RESOURCES_DIR
+// together to avoid false positives when the env var leaks into unrelated
+// children such as SSH with SendEnv).
 func supportsKittyGraphics() bool {
 	if os.Getenv("KITTY_WINDOW_ID") != "" {
 		return true
@@ -91,10 +112,17 @@ func supportsKittyGraphics() bool {
 	if os.Getenv("TERM_PROGRAM") == "ghostty" || strings.Contains(term, "xterm-ghostty") {
 		return true
 	}
-	if os.Getenv("TMUX") != "" && os.Getenv("GHOSTTY_RESOURCES_DIR") != "" {
+	if inMultiplexer() && os.Getenv("GHOSTTY_RESOURCES_DIR") != "" {
 		return true
 	}
 	return false
+}
+
+// inMultiplexer reports whether we run inside a multiplexer known to forward
+// Kitty graphics to the outer terminal. herdr does so by default
+// (kitty_graphics = true).
+func inMultiplexer() bool {
+	return os.Getenv("TMUX") != "" || os.Getenv("TERM_PROGRAM") == "herdr"
 }
 
 func encodeIterm2(png []byte, widthCells int) string {

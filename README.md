@@ -66,6 +66,10 @@ When stdout is a supported terminal, Mermaid code blocks are rendered inline as 
 - Kitty
 - Ghostty
 
+Ghostty is also detected inside tmux and [herdr](https://herdr.dev). If
+auto-detection fails (for example under another multiplexer), force a protocol
+with `GLOWM_IMAGE_PROTOCOL=kitty` (also `iterm2`, `sixel`, or `none`).
+
 On other terminals, Mermaid blocks gracefully fall back to code blocks.
 
 Chrome or Chromium is required for Mermaid rendering and PDF export.
